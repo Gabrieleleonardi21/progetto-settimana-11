@@ -6,7 +6,7 @@ import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { login } from '../store/slices/authSlice'
-import { KEYS, readString } from '../utils/storage'
+import { KEYS } from '../utils/storage'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const FAKE_REQUEST_MS = 800
@@ -25,8 +25,11 @@ export function Login() {
   const dispatch = useAppDispatch()
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated)
 
-  // Pre-compila l'ultimo nome usato: il profilo sopravvive al logout
-  const [user, setUser] = useState(() => readString(KEYS.displayName) ?? '')
+  // Pre-compila l'ultimo nome usato: il profilo sopravvive al logout.
+  // Il nome si legge dallo store (che lo idrata da localStorage all'avvio), non
+  // da localStorage: unica fonte di verità.
+  const savedName = useAppSelector((state) => state.profile.displayName)
+  const [user, setUser] = useState(savedName)
   const [error, setError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
