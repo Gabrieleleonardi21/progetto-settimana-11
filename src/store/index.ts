@@ -7,6 +7,7 @@
 import { configureStore, type ThunkAction, type UnknownAction } from '@reduxjs/toolkit'
 import { persistMiddleware } from './persistMiddleware'
 import authReducer from './slices/authSlice'
+import catalogReducer from './slices/catalogSlice'
 import libraryReducer from './slices/librarySlice'
 import playerReducer from './slices/playerSlice'
 import profileReducer from './slices/profileSlice'
@@ -20,6 +21,8 @@ export const store = configureStore({
     profile: profileReducer,
     library: libraryReducer,
     player: playerReducer,
+    // Dati remoti iTunes: cache di server, non persistita (vedi persistMiddleware)
+    catalog: catalogReducer,
     stats: statsReducer,
     theme: themeReducer,
     ui: uiReducer,

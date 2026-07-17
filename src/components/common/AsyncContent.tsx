@@ -7,7 +7,7 @@
 // ============================================
 
 import type { ReactNode } from 'react'
-import type { AsyncResult } from '../../hooks/useAsync'
+import type { CatalogQueryResult } from '../../hooks/useCatalogQuery'
 
 export function Loading() {
   return (
@@ -35,7 +35,7 @@ export function ErrorBox({ onRetry }: ErrorBoxProps) {
 }
 
 interface AsyncContentProps<T> {
-  state: AsyncResult<T>
+  state: CatalogQueryResult<T>
   children: (data: T) => ReactNode
 }
 
