@@ -4,9 +4,13 @@
 // L'equivalente di `initShell()` del vanilla, ma dichiarativo: sidebar, topbar,
 // player, PiP, modali e toast sono montati una volta sola. Solo <Outlet/> cambia
 // al variare della rotta — per questo la musica non si interrompe navigando.
+//
+// Le pagine sono lazy (vedi App.tsx), quindi serve un <Suspense>. Sta qui, il più
+// vicino possibile all'<Outlet/>: un boundary più in alto sostituirebbe l'intera
+// shell col fallback a ogni navigazione, smontando il <Player/> e con esso l'audio.
 // ============================================
 
-import { useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { useAudioSync } from '../../hooks/useAudioSync'
 import { usePictureInPicture } from '../../hooks/usePictureInPicture'
@@ -17,6 +21,15 @@ import { PipPlayer } from '../player/PipPlayer'
 import { Player } from '../player/Player'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
+
+/** Mostrato mentre il chunk della pagina viene scaricato. */
+function PageLoader() {
+  return (
+    <div className="text-center text-secondary py-5">
+      <div className="spinner-border text-success" role="status" />
+    </div>
+  )
+}
 
 export function Layout() {
   useAudioSync()
@@ -38,7 +51,9 @@ export function Layout() {
       <main className="main-content" ref={mainRef}>
         <TopBar />
         <div className="content-area">
-          <Outlet />
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
 
