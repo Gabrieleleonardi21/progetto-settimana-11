@@ -4,20 +4,18 @@
 // così non parte nessuna chiamata all'API.
 // ============================================
 
-import { useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { cached } from '../api/cache'
-import { itunesGetArtist } from '../api/itunes'
-import { normalizeAlbum, normalizeList, normalizeTrack } from '../api/normalize'
+import { normalizeTrack } from '../api/normalize'
 import { CUSTOM_TRACK_DARIO } from '../api/staticData'
 import { AsyncContent } from '../components/common/AsyncContent'
 import { Card, CardGrid } from '../components/common/Card'
 import { PlaylistHeader } from '../components/common/PlaylistHeader'
 import { TrackList } from '../components/tracks/TrackList'
-import { useAsync } from '../hooks/useAsync'
+import { useCatalogQuery } from '../hooks/useCatalogQuery'
 import { useQuickPlay } from '../hooks/useQuickPlay'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { selectIsFollowed } from '../store/selectors'
+import { artistKey, fetchArtist } from '../store/slices/catalogSlice'
 import { toggleFollowArtist } from '../store/slices/librarySlice'
 import type { FavoriteArtist } from '../types'
 
@@ -60,22 +58,16 @@ function CustomArtist() {
 function ItunesArtist({ artistId }: { artistId: string }) {
   const { playAlbum } = useQuickPlay()
 
-  const state = useAsync(
-    useCallback(() => cached(`artist_${artistId}`, () => itunesGetArtist(artistId)), [artistId]),
-    [artistId],
-  )
+  const state = useCatalogQuery({
+    key: artistKey(artistId),
+    run: () => fetchArtist(artistId),
+    select: (s) => s.catalog.artists[artistId],
+  })
 
   return (
     <AsyncContent state={state}>
-      {({ artist, albums: rawAlbums }) => {
-        if (!artist) return <p className="text-secondary mt-4">Artista non trovato.</p>
-
-        const albums = normalizeList(rawAlbums, normalizeAlbum)
-        const favorite: FavoriteArtist = {
-          artistId: String(artist.artistId ?? ''),
-          artistName: artist.artistName ?? '',
-          genre: artist.primaryGenreName ?? '',
-        }
+      {({ artist: favorite, albums }) => {
+        if (!favorite) return <p className="text-secondary mt-4">Artista non trovato.</p>
 
         return (
           <>

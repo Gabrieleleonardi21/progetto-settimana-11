@@ -1,15 +1,12 @@
 // Brani di un genere musicale. Se il nome non è tra i GENRES noti,
 // viene usato così com'è come termine di ricerca.
 
-import { useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { cached } from '../api/cache'
-import { itunesSearch } from '../api/itunes'
-import { normalizeList, normalizeTrack } from '../api/normalize'
 import { GENRES } from '../api/staticData'
 import { AsyncContent } from '../components/common/AsyncContent'
 import { TrackList } from '../components/tracks/TrackList'
-import { useAsync } from '../hooks/useAsync'
+import { useCatalogQuery } from '../hooks/useCatalogQuery'
+import { fetchGenre, genreKey } from '../store/slices/catalogSlice'
 
 export function Genre() {
   const { genreName = '' } = useParams()
@@ -19,17 +16,16 @@ export function Genre() {
   const term = genre?.term ?? decoded
   const title = genre?.name ?? decoded
 
-  const state = useAsync(
-    useCallback(() => cached(`genre_${term}`, () => itunesSearch(term, 'song', 30)), [term]),
-    [term],
-  )
+  const state = useCatalogQuery({
+    key: genreKey(term),
+    run: () => fetchGenre(term),
+    select: (s) => s.catalog.genres[term],
+  })
 
   return (
     <>
       <h1 className="greeting-title">{title}</h1>
-      <AsyncContent state={state}>
-        {(items) => <TrackList tracks={normalizeList(items, normalizeTrack)} />}
-      </AsyncContent>
+      <AsyncContent state={state}>{(tracks) => <TrackList tracks={tracks} />}</AsyncContent>
     </>
   )
 }

@@ -1,39 +1,34 @@
 // Pagina di un album iTunes.
 
-import { useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { cached } from '../api/cache'
-import { itunesGetAlbum } from '../api/itunes'
-import { normalizeAlbum, normalizeList, normalizeTrack } from '../api/normalize'
 import { AsyncContent } from '../components/common/AsyncContent'
 import { ActionsRow, PlayButton, PlaylistHeader } from '../components/common/PlaylistHeader'
 import { TrackList } from '../components/tracks/TrackList'
-import { useAsync } from '../hooks/useAsync'
+import { useCatalogQuery } from '../hooks/useCatalogQuery'
 import { useAppDispatch } from '../store/hooks'
 import { playTracks } from '../store/playerThunks'
+import { albumKey, fetchAlbum } from '../store/slices/catalogSlice'
 
 export function Album() {
   const { albumId = '' } = useParams()
   const dispatch = useAppDispatch()
 
-  const state = useAsync(
-    useCallback(() => cached(`album_${albumId}`, () => itunesGetAlbum(albumId)), [albumId]),
-    [albumId],
-  )
+  const state = useCatalogQuery({
+    key: albumKey(albumId),
+    run: () => fetchAlbum(albumId),
+    select: (s) => s.catalog.albums[albumId],
+  })
 
   return (
     <AsyncContent state={state}>
-      {({ album, tracks: rawTracks }) => {
-        const normalized = normalizeAlbum(album)
-        if (!normalized) return <p className="text-secondary mt-4">Album non trovato.</p>
-
-        const tracks = normalizeList(rawTracks, normalizeTrack)
+      {({ album, tracks }) => {
+        if (!album) return <p className="text-secondary mt-4">Album non trovato.</p>
 
         return (
           <>
-            <PlaylistHeader cover={normalized.cover} type="Album" title={normalized.title}>
+            <PlaylistHeader cover={album.cover} type="Album" title={album.title}>
               <div className="playlist-meta">
-                <strong>{normalized.artist}</strong>
+                <strong>{album.artist}</strong>
                 {` • ${tracks.length} brani`}
               </div>
             </PlaylistHeader>

@@ -2,42 +2,50 @@
 // RIPRODUZIONE DAL BOTTONE PLAY SULLE CARD
 //
 // Album e playlist virtuali non hanno i brani già in memoria: vanno chiesti
-// all'API (o alla cache) prima di poterli mettere in coda.
+// all'API (o allo store, se una pagina li ha già caricati) prima di metterli
+// in coda.
+//
+// L'id arriva al click, non al render: `useAppSelector` non si può usare dentro
+// un handler, quindi si legge lo store con `useAppStore().getState()`.
 // ============================================
 
 import { useCallback } from 'react'
-import { cached } from '../api/cache'
-import { itunesGetAlbum, itunesGetPlaylistTracks } from '../api/itunes'
-import { normalizeList, normalizeTrack } from '../api/normalize'
-import { useAppDispatch } from '../store/hooks'
+import { useAppDispatch, useAppStore } from '../store/hooks'
 import { playTracks } from '../store/playerThunks'
+import { fetchAlbum, fetchPlaylist } from '../store/slices/catalogSlice'
 import { showToast } from '../store/slices/uiSlice'
 
 export function useQuickPlay() {
   const dispatch = useAppDispatch()
+  const store = useAppStore()
 
   const playAlbum = useCallback(
     async (albumId: string) => {
-      try {
-        const { tracks } = await cached(`album_${albumId}`, () => itunesGetAlbum(albumId))
-        dispatch(playTracks(normalizeList(tracks, normalizeTrack)))
-      } catch {
+      // Il thunk non riparte se il dato è già nello store (vedi `condition`)
+      await dispatch(fetchAlbum(albumId))
+
+      const detail = store.getState().catalog.albums[albumId]
+      if (!detail) {
         dispatch(showToast('Impossibile caricare l’album'))
+        return
       }
+      dispatch(playTracks(detail.tracks))
     },
-    [dispatch],
+    [dispatch, store],
   )
 
   const playVirtualPlaylist = useCallback(
     async (playlistId: string) => {
-      try {
-        const raw = await cached(`vptracks_${playlistId}`, () => itunesGetPlaylistTracks(playlistId))
-        dispatch(playTracks(normalizeList(raw, normalizeTrack)))
-      } catch {
+      await dispatch(fetchPlaylist(playlistId))
+
+      const detail = store.getState().catalog.playlists[playlistId]
+      if (!detail) {
         dispatch(showToast('Impossibile caricare la playlist'))
+        return
       }
+      dispatch(playTracks(detail.tracks))
     },
-    [dispatch],
+    [dispatch, store],
   )
 
   return { playAlbum, playVirtualPlaylist }
