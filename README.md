@@ -39,7 +39,7 @@ src/
  │    ├── modals/  # Finestre di dialogo modali dell'applicazione
  │    ├── player/  # Player centrale, controlli volume, barre di riproduzione e PiP
  │    └── tracks/  # Liste tracce e righe interattive dei brani
- ├── hooks/        # Logiche riutilizzabili (useAsync, useAudioSync, usePictureInPicture, useQuickPlay...)
+ ├── hooks/        # Logiche riutilizzabili (useCatalogQuery, useAudioSync, usePictureInPicture, useQuickPlay...)
  ├── pages/        # Componenti principali di rotta (Home, Search, Liked, Wrapped, Album, Artist...)
  ├── store/        # Gestione globale dello stato: Slice, Thunk del Player e Middleware
  ├── types/        # Tipizzazione forte: modelli di dominio ed interfacce iTunes API
@@ -76,6 +76,7 @@ Lo store globale è suddiviso in moduli specializzati per mantenere l'applicazio
 - `stats`: Aggregazione degli ascolti per artista, motore pulsante dell'esperienza _Wrapped_.
 - `theme`: Controlla e applica dinamicamente la palette colori ed il tema dell'interfaccia.
 - `ui`: Gestione dello stato di elementi volatili come Toast, Sleep Timer e modali attivi.
+- `catalog`: I risultati delle chiamate a iTunes (album, artisti, generi, playlist, ricerche, home), caricati dai `createAsyncThunk` in `store/slices/catalogSlice.ts`.
 
 ### 💾 Persistenza Invisibile ed Elegante
 
@@ -88,6 +89,7 @@ Dimentica le chiamate esplicite a `saveToLocalStorage()`. Abbiamo implementato u
 I reducer rimangono puri e privi di side-effects.
 
 1. **Dall'App all'Audio (Thunks)**: Azioni come `play`, `pause` o `seek` transitano per i Thunk asincroni presenti in `store/playerThunks.ts`, dialogando in sicurezza con il singleton audio.
+   Allo stesso modo le chiamate di rete passano dai `createAsyncThunk` di `store/slices/catalogSlice.ts`: i risultati finiscono nello store già normalizzati, e i tre stati `pending`/`fulfilled`/`rejected` alimentano spinner ed errori delle pagine.
 2. **Dall'Audio all'App (Hooks)**: Il flusso opposto (avanzamento, durata reale dell'anteprima, fine brano, play/pausa dai tasti multimediali) viene intercettato dall'hook `hooks/useAudioSync.ts` e inviato allo store Redux.
 
 ---

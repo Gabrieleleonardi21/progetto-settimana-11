@@ -13,32 +13,38 @@ Quasi tutta la logica del progetto discende da una sola idea: **tre cose diverse
 possiedono tre tipi di dato diversi**, e non si invadono a vicenda.
 
 ```
-┌─────────────────────┐   ┌──────────────────────┐   ┌───────────────────────┐
-│   REDUX (store/)    │   │  <audio>  (audio/)   │   │  CACHE API  (api/)    │
-├─────────────────────┤   ├──────────────────────┤   ├───────────────────────┤
-│ Stato dell'app      │   │ Il motore che suona  │   │ Dati che appartengono │
-│ Serializzabile      │   │ Non serializzabile   │   │ a iTunes, non a noi   │
-│ Persistito          │   │ Effimero             │   │ Rigenerabile          │
-│                     │   │                      │   │                       │
-│ brano corrente      │   │ currentTime reale    │   │ album, artisti,       │
-│ coda, isPlaying     │   │ buffering, decodifica│   │ risultati di ricerca  │
-│ preferiti, playlist │   │                      │   │                       │
-│ tema, profilo       │   │                      │   │                       │
-└─────────────────────┘   └──────────────────────┘   └───────────────────────┘
+┌──────────────────────────────────┐  ┌──────────────────────┐  ┌──────────────────┐
+│          REDUX (store/)          │  │  <audio>  (audio/)   │  │ TRASPORTO (api/) │
+├─────────────────┬────────────────┤  ├──────────────────────┤  ├──────────────────┤
+│ Stato dell'app  │ Dati remoti    │  │ Il motore che suona  │  │ Rete + cache su  │
+│ Serializzabile  │ Serializzabili │  │ Non serializzabile   │  │ localStorage 24h │
+│ Persistito      │ NON persistiti │  │ Effimero             │  │ Fallback offline │
+│                 │                │  │                      │  │                  │
+│ brano corrente  │ album, artisti │  │ currentTime reale    │  │ fetch a iTunes   │
+│ coda, isPlaying │ generi, ricerche│ │ decodifica, buffering│  │ dedup richieste  │
+│ preferiti       │ home, playlist │  │                      │  │                  │
+│ tema, profilo   │  (catalogSlice)│  │                      │  │                  │
+└─────────────────┴────────────────┘  └──────────────────────┘  └──────────────────┘
 ```
 
-Le tre domande che risolvono ogni dubbio su "dove metto questo dato?":
+Le domande che risolvono ogni dubbio su "dove metto questo dato?":
 
 1. **Serve ad altri componenti o deve sopravvivere al ricaricamento?** → Redux.
 2. **È un oggetto del browser (Window, HTMLAudioElement)?** → fuori da Redux, sempre.
    Non è serializzabile, e Redux Toolkit segnalerebbe un errore.
-3. **Viene da iTunes ed è riscaricabile?** → non è stato dell'app, è cache
-   ([api/cache.ts](src/api/cache.ts)). Metterlo in Redux significherebbe duplicare
-   una cosa che il server già possiede.
+3. **Viene da iTunes?** → Redux, nel `catalog` ([catalogSlice.ts](src/store/slices/catalogSlice.ts)),
+   passando dai suoi thunk. Nello store va il dato **già normalizzato** (`Track`, `Album`),
+   mai il formato grezzo dell'API.
 
-Tutto ciò che non rientra in questi tre casi — l'hover su uno slider, un menu aperto,
+Tutto ciò che non rientra in questi casi — l'hover su uno slider, un menu aperto,
 una bozza di form — resta `useState` locale nel componente. Non è una svista: metterlo
 in Redux farebbe girare i selector di tutta l'app a ogni movimento del mouse.
+
+> **Nota sul punto 3.** I dati remoti sono cache di server: rigenerabili, non "nostri".
+> Un'architettura React li terrebbe volentieri fuori dallo store (è quello che faceva
+> questo progetto fino alla migrazione a `createAsyncThunk`). Stanno in Redux per scelta
+> esplicita, così ogni dato che l'app mostra è ispezionabile da un unico posto e visibile
+> nei DevTools. Il prezzo è che il `catalog` va tenuto fuori dalla persistenza — vedi §6.
 
 ---
 
@@ -212,43 +218,61 @@ ricaricava il documento e azzerava la riproduzione.
 
 ---
 
-## 5. Flusso: dati remoti e cache
+## 5. Flusso: dati remoti (catalogSlice)
 
-I dati di iTunes **non stanno in Redux**. Sono cache di server: rigenerabili, non nostri.
+I dati di iTunes stanno in Redux, nello slice `catalog`. Ogni risorsa ha il suo
+`createAsyncThunk`, che genera le tre action `pending` / `fulfilled` / `rejected`.
 
 ```
 Album.tsx
    ↓
-useAsync(() => cached(`album_${id}`, () => itunesGetAlbum(id)), [id])
+useCatalogQuery({ key, run: () => fetchAlbum(id), select: s => s.catalog.albums[id] })
    ↓
-cached() prova tre livelli in ordine:
-   1. memoria (Map)             → istantaneo, dura la sessione
-   2. localStorage entro 24h    → evita del tutto la chiamata
-   3. richiesta identica già in volo?  → si aggancia a quella (niente doppio fetch)
-   4. fetch reale a iTunes
-        ├─ ok      → salva in memoria + localStorage
-        └─ errore  → ripiega sul dato salvato ANCHE SE SCADUTO
-                     se non esiste → propaga l'errore
+il thunk parte solo se serve  →  `condition`:  dato già nello store?  → NON parte
+                                               richiesta già in volo?  → NON parte
+   ↓
+fetchAlbum.pending → catalog.requests['album_123'] = { loading: true }
+   ↓
+cached(`album_123`, () => itunesGetAlbum(id))        ← il TRASPORTO, api/cache.ts
+   ├─ 1. memoria (Map)          → istantaneo
+   ├─ 2. localStorage entro 24h → evita del tutto la chiamata
+   ├─ 3. richiesta identica in volo? → si aggancia a quella
+   └─ 4. fetch reale a iTunes
+          ├─ ok      → salva in memoria + localStorage
+          └─ errore  → ripiega sul dato salvato ANCHE SE SCADUTO
+                       se non esiste → propaga l'errore
    ↓
 normalize.ts: dal formato grezzo iTunes al modello dell'app (Track, Album, Artist)
    ↓
-useAsync espone { data, loading, error, retry }
+fetchAlbum.fulfilled → catalog.albums['123'] = { album, tracks }   ← NELLO STORE
+        oppure
+fetchAlbum.rejected  → catalog.requests['album_123'] = { error: '...' }
+   ↓
+useCatalogQuery legge dallo store e restituisce { data, loading, error, retry }
    ↓
 <AsyncContent> sceglie: spinner | messaggio d'errore + "Riprova" | contenuto
 ```
 
-**Il fallback sul dato scaduto** non è un dettaglio: iTunes risponde `403` quando limita
-le richieste. Meglio mostrare un album di ieri che una schermata di errore.
+**Perché due livelli di cache** (lo store *e* `cached()`). Fanno cose diverse: lo store
+serve la sessione corrente ed è ciò che la UI legge; `cached()` è il trasporto e aggiunge
+quello che lo store non ha — la persistenza a 24h su localStorage (dopo un ricaricamento
+il `catalog` riparte vuoto, ma i dati arrivano dal disco senza toccare la rete) e il
+fallback sul dato scaduto quando iTunes risponde `403` perché sta limitando le richieste.
+Meglio mostrare un album di ieri che una schermata di errore.
 
-**La mappa `inFlight`** esiste per due motivi concreti: due componenti che chiedono la
-stessa chiave nello stesso istante, e il doppio effect di `StrictMode` in sviluppo. Senza
-di essa ogni pagina farebbe due fetch identici.
+**`condition` è ciò che rende lo store una cache vera**: senza, ogni visita a una pagina
+rifarebbe la richiesta. Con, il dato già presente la annulla in partenza. È anche la
+difesa contro il doppio effect di `StrictMode`: la seconda esecuzione trova
+`requests[key].loading === true` e si ferma.
 
-**Le due protezioni contro le risposte fuori ordine** (`cancelled` in
-[useAsync](src/hooks/useAsync.ts) e in [Search](src/pages/Search.tsx)): se le dipendenze
-cambiano mentre una richiesta è in volo, la risposta vecchia arriverebbe *dopo* la nuova
-e sovrascriverebbe i dati corretti. Digitando in fretta nella ricerca succederebbe di
-continuo.
+**La ricerca è l'eccezione: non passa da `cached()`.** Ogni query digitata creerebbe una
+voce su localStorage, riempiendolo di risultati usa e getta. Lì la cache è solo lo store,
+che vive quanto la sessione.
+
+**Le protezioni contro le risposte fuori ordine** non servono più a mano: i risultati
+sono indicizzati per chiave (`catalog.searches['battisti']`), quindi una risposta lenta
+di una query vecchia finisce nella *sua* casella e non sovrascrive quella nuova. Prima,
+con lo stato locale, serviva un flag `cancelled` in ogni pagina.
 
 ---
 
@@ -271,6 +295,11 @@ sì → riscrive TUTTE le chiavi della libreria da getState()
 La lettura fa il percorso opposto, ma **una volta sola all'avvio**: ogni slice legge la
 propria chiave nell'`initialState` (vedi §2). Non esiste una riga che legga localStorage
 a runtime — se ne trovi una, è un bug: significa che qualcuno sta scavalcando lo store.
+(L'unica eccezione è `api/cache.ts`, che ha una sua area separata con prefisso
+`apicache_` e una TTL: è trasporto, non stato dell'app.)
+
+**Il `catalog` è l'unico slice che non compare qui sotto**, ed è voluto: vedi §5 e
+l'invariante 7.
 
 | Cosa scatena il salvataggio | Cosa viene scritto |
 |---|---|
@@ -368,8 +397,13 @@ Se modifichi il progetto, questi sono i punti dove è facile fare danni:
    persistenza e debugging.
 5. **Il `<Suspense>` non deve salire sopra il `Layout`**, o la musica si ferma a ogni
    navigazione (vedi §2).
-6. **Il dato remoto non entra in Redux.** Se ti serve un album in più punti, la risposta è
-   `cached()`, non un nuovo slice.
+6. **Il dato remoto entra in Redux solo dai thunk del `catalog`**, e già normalizzato.
+   Una pagina non deve chiamare `itunes*()` o `cached()` per conto suo: se serve una
+   risorsa nuova, si aggiunge un thunk allo slice.
+7. **Il `catalog` non va persistito.** È l'unico slice che `persistMiddleware` ignora, e
+   deve restare così: sono decine di album e ricerche: saturerebbero localStorage e non
+   avrebbero mai una scadenza. La persistenza dei dati remoti è già compito di
+   `cached()`, che ha una TTL di 24h (vedi §5).
 
 ---
 
@@ -380,6 +414,8 @@ Se modifichi il progetto, questi sono i punti dove è facile fare danni:
 | il comportamento di play/pause/next/seek | [store/playerThunks.ts](src/store/playerThunks.ts) |
 | cosa succede quando l'audio finisce o avanza | [hooks/useAudioSync.ts](src/hooks/useAudioSync.ts) |
 | cosa viene salvato e quando | [store/persistMiddleware.ts](src/store/persistMiddleware.ts) |
+| come i dati iTunes entrano nello store | [store/slices/catalogSlice.ts](src/store/slices/catalogSlice.ts) |
+| come una pagina legge una risorsa remota | [hooks/useCatalogQuery.ts](src/hooks/useCatalogQuery.ts) |
 | durata cache / comportamento offline | [api/cache.ts](src/api/cache.ts) |
 | le chiamate a iTunes | [api/itunes.ts](src/api/itunes.ts) |
 | il formato dei dati che arrivano dall'API | [api/normalize.ts](src/api/normalize.ts) |
