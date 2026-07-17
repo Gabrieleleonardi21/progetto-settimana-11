@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spotify Clone – React</title>
+    <!-- Percorso relativo: regge anche il deploy su un sottopercorso (GitHub Pages) -->
+    <link rel="icon" href="./image.png" />
+
+    <!-- Applica il tema salvato PRIMA che la pagina venga disegnata, per evitare
+         il flash del tema di default (FOUC). Legge "color_theme_vars", una copia
+         già risolta delle variabili CSS che themeSlice riscrive a ogni cambio
+         tema: così questo script non deve conoscere la tabella dei temi. -->
+    <script>
+      try {
+        const vars = JSON.parse(localStorage.getItem('color_theme_vars') || 'null')
+        if (vars) {
+          for (const [name, value] of Object.entries(vars)) {
+            document.documentElement.style.setProperty(name, value)
+          }
+        }
+      } catch {
+        // localStorage non disponibile o JSON corrotto: resta il tema di default
+      }
+    </script>
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
