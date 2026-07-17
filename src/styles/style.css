@@ -228,24 +228,24 @@ body {
 }
 
 #wrappedBtn {
-    background: none;
-    border: none;
-    color: var(--spotify-light-gray); 
-    padding: 8px 12px;
-    cursor: pointer;
-    width: 100%;
-    text-align: left;
-    display: flex; 
-    align-items: center;
-    gap: 16px; 
-    font-weight: 700;
-    font-size: 14px;
-    font-family: inherit; 
-    transition: color 0.2s;
+  background: none;
+  border: none;
+  color: var(--spotify-light-gray);
+  padding: 8px 12px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-weight: 700;
+  font-size: 14px;
+  font-family: inherit;
+  transition: color 0.2s;
 }
 
 #wrappedBtn:hover {
-    color: var(--spotify-white); 
+  color: var(--spotify-white);
 }
 
 .main-nav,
@@ -483,6 +483,7 @@ body {
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -567,17 +568,17 @@ body {
 
 /* Stile per il ranking dentro l'album-card */
 .rank-placeholder {
-    width: 40px;
-    height: 40px;
-    background-color: var(--spotify-gray);
-    border-radius: 4px;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    color: var(--spotify-white) !important;
+  width: 40px;
+  height: 40px;
+  background-color: var(--spotify-gray);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--spotify-white) !important;
 }
 
 /* ============================================
