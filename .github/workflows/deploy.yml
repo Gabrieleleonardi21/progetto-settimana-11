@@ -1,0 +1,60 @@
+# Compila il progetto e lo pubblica su GitHub Pages a ogni push su main.
+# Il sito esce su https://gabrieleleonardi21.github.io/progetto-settimana-11/
+#
+# Non serve configurare `base` in vite.config.ts: è già './' (percorsi relativi),
+# quindi il bundle regge il sottopercorso del repo. Il routing usa HashRouter,
+# perciò Pages non deve riscrivere nulla lato server.
+
+name: Deploy su GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Permette di lanciare il deploy a mano dalla tab Actions
+  workflow_dispatch:
+
+# Permessi che il workflow richiede per pubblicare
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un deploy alla volta; non annulla quello in corso, così l'ultimo push vince
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # `npm ci` e non `npm install`: installa esattamente le versioni del lockfile
+      - name: Installa le dipendenze
+        run: npm ci
+
+      # Fallisce il deploy se il type-check non passa: `build` è `tsc -b && vite build`
+      - name: Compila
+        run: npm run build
+
+      - name: Carica il contenuto di dist/
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Pubblica su Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
